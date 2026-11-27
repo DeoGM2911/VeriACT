@@ -1,0 +1,47 @@
+# Prompt composition and variable contract. perception/render.py renders from this file and
+# scripts/check_prompts.py validates it.
+#
+# Every turn is prompted identically: the `system:` parts are concatenated once into the system
+# message, then `turn:` is rendered per turn. The model calls play / read_notes / write_notes /
+# inspect / read_pixels / history freely; `play` ends the turn.
+#
+# `since` is a version gate: an entry is active when its `since` is at or before the version the
+# loop renders for (render.py's MILESTONES list, loop.py's MILESTONE). Every entry here is active.
+
+system:                       # assembled in listed order into the system message
+  - {file: system/00-task.md,      since: M1}
+  - {file: system/10-interface.md, since: M1}
+  - {file: system/30-notes.md,     since: M2}
+
+# Rendered fresh each turn and appended to the running conversation as a user message.
+# Blocks whose variables are all absent are omitted (render.py's block-omission rule).
+turn: turn.md
+
+# Context-window management (memory/session.py). Neither is per-turn and neither is a tool.
+# `digest` is the single user message that stands in for the turns a cut evicted -- written by the
+# harness from logged fields, never by a model call. `frame_placeholder` is what an evicted image
+# leaves behind inside an older turn record.
+digest: {file: digest.md, since: M13}
+frame_placeholder: {file: frame_placeholder.md, since: M13}
+
+variables:
+  max_px:                 {source: config,  since: M1}   # image_px - 1
+  turn:                   {source: derived, since: M1}
+  obs_image:              {source: derived, since: M1}
+  available_actions:      {source: env,     since: M1}
+  levels_completed:       {source: env,     since: M1}
+  win_levels:             {source: env,     since: M1}
+  state:                  {source: env,     since: M1}
+  digest_body:            {source: derived, since: M13}  # digest.md only -- digest.render_digest
+  guide_notes:            {source: derived, since: M13}  # digest.md only -- notes copied in at a cut
+  working_notes:          {source: derived, since: M13}  # digest.md only -- same
+  last_description:       {source: derived, since: M13}  # digest.md only -- last change narration
+  placeheld_turn:         {source: derived, since: M13}  # frame_placeholder.md only
+
+tools:
+  play:            {file: tools/play.md,        since: M1}
+  read_notes:      {file: tools/read_notes.md,  since: M2}
+  write_notes:     {file: tools/write_notes.md, since: M2}
+  inspect:         {file: tools/inspect.md,     since: M3}
+  read_pixels:     {file: tools/read_pixels.md, since: M3}
+  history:         {file: tools/history.md,     since: M13}

@@ -1,0 +1,70 @@
+# Default harness configuration. Pass `--config <file>` to run.py / eval.py to override any subset
+# of these keys (the override is deep-merged on top of this file).
+
+model:
+  provider: openai_compatible      # an OpenAI-compatible chat-completions endpoint (e.g. vLLM)
+  base_url: http://localhost:8000/v1
+  model: "Qwen/Qwen3.8-27B"        # must be a vision-capable model: the observation is an image.
+                                    # scripts/serve/ has vLLM launch scripts for the models tried.
+  api_key_env: VLLM_API_KEY        # name of the environment variable holding the API key
+  # Must match the server's --max-model-len.
+  max_context_tokens: 262144
+  # Includes thinking tokens: vLLM counts reasoning output against max_tokens.
+  max_output_tokens: 32768
+  temperature: 1.0
+  top_p: 0.95
+  # Model-specific; sent via chat_template_kwargs (see llm.py). Remove for models that don't use it.
+  reasoning_effort: xhigh
+  # Per-request timeout/retries for the openai client. Each retry regenerates the reply.
+  request_timeout_seconds: 1800
+  max_retries: 10
+  supports_images: true
+  tool_mode: native                # native | memo (plain-text fallback; see agent/memo.py)
+
+observation:
+  image:
+    scale: 8                       # each grid cell is drawn as an 8x8 block: 64 * 8 = 512 px
+    gridline_brightness: 0.75      # cell outlines are drawn in the cell's own colour, darkened
+    confirm_crop_px: 128           # size of the crop used to confirm a click's target
+
+memory:
+  frames:
+    archive_png: true              # write every returned frame to runs/<id>/frames/
+    max_inspect_views: 7           # max views per `inspect` / `read_pixels` call
+
+# Context-window management (see memory/session.py and SessionConfig in agent/config.py).
+# Unknown keys are ignored silently, so check spelling when overriding.
+session:
+  compact_at_frac: 0.75             # high-water mark, fraction of model.max_context_tokens
+  target_after_cut_frac: 0.55       # low-water mark; clamped further in code to fit one turn
+  max_images_in_context: 100        # must stay under the server's --limit-mm-per-prompt
+  max_images_per_turn: 10           # observation + inspect views a single turn may add
+  keep_full_turns: 8                # newest turn records kept verbatim
+  keep_text_turns: 40               # next records kept as text, images replaced by a placeholder
+  digest_max_chars: 6000            # before the oldest levels collapse to a summary line each
+  notes_push_max_chars: 3500        # per file, for the notes copied into the digest at a cut
+  tokens_per_image: 1024            # estimate; measure for your model
+  chars_per_token: 3.5              # conservative; English prose is nearer 4
+
+run:
+  action_budget_multiplier: 5      # per-level action budget = baseline_actions[level] * this
+  max_tool_calls_per_turn: 6       # free tool calls in the ACT stage before `play` is required
+  max_tool_calls_per_stage: 30     # free tool calls in OBSERVE / VERIFY+PLAN / UPDATE
+  stagnation_window: 6             # repetition detector: how far back a new pattern is recognized
+  stagnation_min_repeats: 3        # repeats before a repeated action / alternation is reported
+  max_protocol_retries: 5          # malformed/missing tool calls tolerated before the run aborts
+  max_turns: 300
+  max_resets_per_level: 10
+  max_total_actions: 2000
+  max_wall_clock_seconds: null     # null disables it; set a number to cap real run time
+
+trace:
+  # When true, each trace.jsonl record gets a "thinking" field with the model's reasoning output
+  # (only if the provider returns one).
+  log_thinking: false
+  # Diagnostic: record the exact, unparsed response body per turn in a "raw_response" field.
+  log_raw_response: true
+
+paths:
+  # null -> <repo>/environment_files. Override here or with `--environments-dir`.
+  environments_dir: null

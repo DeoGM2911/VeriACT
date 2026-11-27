@@ -1,0 +1,16 @@
+# Runtime dependencies
+arc-agi==0.9.8
+arcengine==0.9.3
+numpy>=1.26
+openai>=2.0
+Pillow>=10.0
+PyYAML>=6.0
+
+# Model hosting (vLLM server) -- runs on the GPU host, not with the harness client above.
+# `vllm` itself is deliberately NOT pinned here: Gemma 4 requires a vLLM nightly build served
+# from a CUDA-version-specific wheel index (see scripts/serve_gemma4_31b.sh), and pinning a
+# nightly/--pre package in this file would force that onto every install of this repo, including
+# non-GPU machines that only ever run the harness client. scripts/serve_gemma4_31b.sh installs it
+# on demand in whatever environment it's run in (scripts/serve_qwen3_vl_32b.sh, for
+# Qwen/Qwen3-VL-32B-Instruct, needs only a stable vllm>=0.11.0 -- also unpinned here, for the same
+# non-GPU-install reason).

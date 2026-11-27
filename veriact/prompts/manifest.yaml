@@ -1,0 +1,83 @@
+# Prompt composition and variable contract. perception/render.py renders from this file and
+# scripts/check_prompts.py validates it.
+#
+# The `system:` parts are concatenated once into the system message; `turn:` is rendered every
+# turn. The per-stage reminder (`stage_tools`) and the stage tools themselves are listed below;
+# which stage offers which tool is decided in agent/loop.py. `memo:` is the separate front end
+# for `tool_mode: memo`, chosen in config for the whole run.
+#
+# `since` is a version gate: an entry is active when its `since` is at or before the version the
+# loop renders for (render.py's MILESTONES list, loop.py's MILESTONE). Every entry here is active.
+
+system:                       # assembled in listed order into the system message
+  - {file: system/00-task.md,      since: M1}
+  - {file: system/10-interface.md, since: M1}
+  - {file: system/30-notes.md,     since: M2}
+
+# Rendered fresh each turn and appended to the running conversation as a user message.
+# Blocks whose variables are all absent are omitted, so a turn without (say) a frames note drops
+# that line rather than rendering an empty one. A "block" is a run of lines between blank lines --
+# not a markdown section.
+turn: turn.md
+
+# Context-window management (memory/session.py). Neither is per-turn and neither is a tool.
+# `digest` is the single user message that stands in for the turns a cut evicted -- written by the
+# harness from logged fields, never by a model call. `frame_placeholder` is what an evicted image
+# leaves behind inside an older turn record; it tells the model the frame is still retrievable.
+digest: {file: digest.md, since: M13}
+frame_placeholder: {file: frame_placeholder.md, since: M13}
+
+# Description of TERMINAL OBSERVE's `observe` schema variant. Not under `tools:`: the function
+# name stays "observe", and loop.py builds this variant directly.
+observe_terminal: {file: tools/observe_terminal.md, since: M12}
+
+# The question sent with the click-target confirmation crop. Not under `tools:` and never part of
+# the main conversation: it is the whole content of a separate request (loop._confirm_click_target).
+click_confirm: {file: click_confirm.md, since: M12}
+
+# Rendered right before each stage's model exchange: names exactly the tools callable in that
+# stage, built from the schema list passed to that call.
+stage_tools: {file: stage_tools.md, since: M14}
+
+variables:
+  max_px:                 {source: config,  since: M1}   # image_px - 1
+  turn:                   {source: derived, since: M1}
+  obs_image:              {source: derived, since: M1}
+  available_actions:      {source: env,     since: M1}
+  levels_completed:       {source: env,     since: M1}
+  win_levels:             {source: env,     since: M1}
+  state:                  {source: env,     since: M1}
+  frames_note:            {source: derived, since: M3}   # "this action returned N frames"
+  frame_changed_note:     {source: derived, since: M9}   # "last action did/did not change the frame"
+  stagnation_note:        {source: derived, since: M9}   # repeated action/cycle detected
+  click_mismatch_note:    {source: derived, since: M14}  # click forced through after exhausting retries
+  guide_content:          {source: derived, since: M5}   # memo mode only -- stands in for read_notes
+  working_content:        {source: derived, since: M5}   # memo mode only -- stands in for read_notes
+  target_description:     {source: derived, since: M12}  # click_confirm.md only -- the model's own
+                                                          # play() argument
+  stage_tools:            {source: derived, since: M14}  # stage_tools.md only -- comma list of the
+                                                          # tool names offered in that stage
+  digest_body:            {source: derived, since: M13}  # digest.md only -- digest.render_digest
+  guide_notes:            {source: derived, since: M13}  # digest.md only -- notes copied in at a cut
+  working_notes:          {source: derived, since: M13}  # digest.md only -- same
+  last_description:       {source: derived, since: M13}  # digest.md only -- last logged observe
+  last_plan:              {source: derived, since: M13}  # digest.md only -- last logged plan
+  placeheld_turn:         {source: derived, since: M13}  # frame_placeholder.md only
+
+tools:
+  play:            {file: tools/play.md,            since: M1}
+  read_notes:      {file: tools/read_notes.md,       since: M2}
+  write_notes:     {file: tools/write_notes.md,      since: M2}
+  inspect:         {file: tools/inspect.md,          since: M3}
+  read_pixels:     {file: tools/read_pixels.md,      since: M3}
+  observe:         {file: tools/observe.md,          since: M10}
+  verify_and_plan: {file: tools/verify_and_plan.md,  since: M7}
+  history:         {file: tools/history.md,          since: M14}
+
+# tool_mode: memo -- a self-contained front end, always rendered in full (no `since` gating).
+# No tool schemas: the model writes free text, optional `## GUIDE` / `## WORKING` sections and a
+# trailing action line (agent/memo.py). It reuses the variables declared above;
+# `guide_content` / `working_content` stand in for `read_notes`, which memo mode cannot call.
+memo:
+  system: memo/system.md
+  turn: memo/turn.md
